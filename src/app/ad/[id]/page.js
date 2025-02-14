@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useAuth } from '../../../contexts/AuthContext';
+import { io } from 'socket.io-client';
 import Link from 'next/link';
+
+let socket;
 
 export default function AdDetails() {
   const [ad, setAd] = useState(null);
@@ -13,61 +16,59 @@ export default function AdDetails() {
   const [message, setMessage] = useState('');
   const { user } = useAuth();
   const params = useParams();
-  const router = useRouter();
 
   useEffect(() => {
-    const fetchAd = async () => {
-      try {
-        const response = await fetch(`/api/ads/${params.id}`);
-        const data = await response.json();
-        
-        if (!response.ok) throw new Error(data.error);
-        setAd(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAd();
-  }, [params.id]);
-
-  const handleMessageSubmit = async (e) => {
-    e.preventDefault();
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const messageData = {
-        content: `[Re: ${ad.title}]\n\n${message}`,
-        receiverId: ad.userId
-      };
-      console.log('Envoi du message:', messageData);
-
-      const response = await fetch('/api/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(messageData),
+    const initSocket = async () => {
+      socket = io(undefined, {
+        path: '/api/socketio',
+        transports: ['websocket'],
+        upgrade: false
       });
 
-      const data = await response.json();
-      console.log('Réponse reçue:', data);
+      socket.on('connect', () => {
+        console.log('Connected to WebSocket');
+        if (user) {
+          socket.emit('authenticate', user.id);
+        }
+        socket.emit('getAd', { adId: params.id });
+      });
 
-      if (!response.ok) {
-        throw new Error(data.error || data.details || 'Erreur lors de l\'envoi du message');
+      socket.on('adDetails', (adData) => {
+        console.log('Received ad details:', adData);
+        setAd(adData);
+        setLoading(false);
+      });
+
+      socket.on('messageSent', () => {
+        setShowContactForm(false);
+        setMessage('');
+      });
+
+      socket.on('error', (error) => {
+        console.error('Erreur WebSocket:', error);
+        setError(error.message);
+        setLoading(false);
+      });
+    };
+
+    initSocket();
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
       }
+    };
+  }, [params.id, user]);
 
-      // Rediriger vers la conversation
-      router.push(`/messages?userId=${ad.userId}`);
-    } catch (error) {
-      console.error('Erreur détaillée:', error);
-      setError(error.message || 'Erreur lors de l\'envoi du message');
-    }
+  const handleMessageSubmit = (e) => {
+    e.preventDefault();
+    if (!user || !message.trim() || !ad) return;
+
+    socket.emit('sendMessage', {
+      content: `[Re: ${ad.title}]\n\n${message}`,
+      receiverId: ad.userId
+    });
   };
 
   if (loading) return <div className="text-center py-10">Chargement...</div>;

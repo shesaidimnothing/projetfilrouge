@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { io } from 'socket.io-client';
 import PageTransition from '../components/animations/PageTransition';
 import AdCard from '../components/animations/AdCard';
 import { useAuth } from '../contexts/AuthContext';
+
+let socket;
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -22,18 +25,45 @@ export default function Home() {
   const { user } = useAuth();
 
   useEffect(() => {
-    const fetchAds = async () => {
-      try {
-        const response = await fetch('/api/ads');
-        const data = await response.json();
-        setAds(data);
-      } catch (error) {
-        console.error('Erreur lors du chargement des annonces:', error);
+    if (!socket) {
+      socket = io('http://localhost:3000', {
+        path: '/api/socketio',
+        transports: ['websocket'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        autoConnect: true,
+        timeout: 20000
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+      });
+
+      socket.on('connect', () => {
+        console.log('Connected to WebSocket');
+        if (user) {
+          socket.emit('authenticate', user.id);
+        }
+        socket.emit('getAds');
+      });
+
+      socket.on('ads', (receivedAds) => {
+        console.log('Received ads:', receivedAds);
+        setAds(receivedAds);
+      });
+
+      socket.on('error', (error) => {
+        console.error('Erreur WebSocket:', error);
+      });
+    }
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
       }
     };
-
-    fetchAds();
-  }, []);
+  }, [user]);
 
   return (
     <PageTransition>
