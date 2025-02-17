@@ -1,8 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { motion } from 'framer-motion';
+import PageTransition from '../../../components/animations/PageTransition';
+import AdCard from '../../../components/AdCard';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
 
 export default function CategoryPage() {
   const [ads, setAds] = useState([]);
@@ -16,7 +28,7 @@ export default function CategoryPage() {
         const data = await response.json();
         setAds(data);
       } catch (error) {
-        console.error('Erreur:', error);
+        console.error('Erreur lors de la récupération des annonces:', error);
       } finally {
         setLoading(false);
       }
@@ -25,38 +37,27 @@ export default function CategoryPage() {
     fetchAds();
   }, [params.category]);
 
-  if (loading) return <div className="text-center py-10">Chargement...</div>;
+  if (loading) {
+    return <div className="text-center py-10">Chargement...</div>;
+  }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">
-        Annonces dans la catégorie {params.category}
-      </h1>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {ads.map((ad) => (
-          <Link key={ad.id} href={`/ad/${ad.id}`}>
-            <div className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="p-4">
-                <h3 className="font-medium text-lg mb-2">{ad.title}</h3>
-                <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                  {ad.description}
-                </p>
-                <p className="text-lg font-bold">{ad.price.toFixed(2)} €</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Publié par {ad.user.name}
-                </p>
-              </div>
-            </div>
-          </Link>
-        ))}
+    <PageTransition>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-6 capitalize">
+          Catégorie : {params.category}
+        </h1>
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+        >
+          {ads.map((ad) => (
+            <AdCard key={ad.id} ad={ad} />
+          ))}
+        </motion.div>
       </div>
-
-      {ads.length === 0 && (
-        <p className="text-center text-gray-500 py-10">
-          Aucune annonce dans cette catégorie
-        </p>
-      )}
-    </div>
+    </PageTransition>
   );
 } 

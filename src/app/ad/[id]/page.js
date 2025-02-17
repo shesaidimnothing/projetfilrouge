@@ -78,6 +78,17 @@ export default function AdDetails() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        {/* Image de l'annonce */}
+        {ad.imageUrl && (
+          <div className="w-full h-96 relative">
+            <img
+              src={ad.imageUrl}
+              alt={ad.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+        
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-3xl font-bold">{ad.title}</h1>
@@ -103,7 +114,7 @@ export default function AdDetails() {
           </div>
 
           {user && user.id !== ad.userId && (
-            <div>
+            <div className="mt-6">
               {!showContactForm ? (
                 <button
                   onClick={() => setShowContactForm(true)}
@@ -127,11 +138,6 @@ export default function AdDetails() {
                       required
                     />
                   </div>
-                  {error && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-                      {error}
-                    </div>
-                  )}
                   <div className="flex gap-2">
                     <button
                       type="button"

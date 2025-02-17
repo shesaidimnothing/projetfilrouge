@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { io } from 'socket.io-client';
 import PageTransition from '../components/animations/PageTransition';
-import AdCard from '../components/animations/AdCard';
+import AdCard from '../components/AdCard';
 import { useAuth } from '../contexts/AuthContext';
 
 let socket;
@@ -138,8 +138,8 @@ export default function Home() {
             animate="visible"
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
           >
-            {ads.map((ad, index) => (
-              <AdCard key={ad.id} ad={ad} index={index} />
+            {ads.map((ad) => (
+              <AdCard key={ad.id} ad={ad} />
             ))}
           </motion.div>
         </div>

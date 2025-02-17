@@ -32,7 +32,6 @@ export default function Messages() {
       socket.on('connect', () => {
         console.log('Connected to WebSocket');
         socket.emit('authenticate', user.id);
-        socket.emit('getConversations');
       });
 
       socket.on('conversations', (data) => {
@@ -42,12 +41,22 @@ export default function Messages() {
 
       socket.on('messages', (receivedMessages) => {
         console.log('Received messages:', receivedMessages);
-        setMessages(receivedMessages);
+        const sortedMessages = receivedMessages.sort((a, b) => 
+          new Date(a.createdAt) - new Date(b.createdAt)
+        );
+        setMessages(sortedMessages);
       });
 
       socket.on('messageSent', (message) => {
         console.log('Message sent:', message);
-        setMessages(prev => [...prev, message]);
+        if (selectedUser && 
+            (message.senderId === selectedUser.userId || 
+             message.receiverId === selectedUser.userId)) {
+          setMessages(prev => [...prev, message].sort((a, b) => 
+            new Date(a.createdAt) - new Date(b.createdAt)
+          ));
+        }
+        updateConversationWithNewMessage(message);
       });
 
       socket.on('messageReceived', (message) => {
@@ -55,11 +64,11 @@ export default function Messages() {
         if (selectedUser && 
             (message.senderId === selectedUser.userId || 
              message.receiverId === selectedUser.userId)) {
-          setMessages(prev => [...prev, message]);
+          setMessages(prev => [...prev, message].sort((a, b) => 
+            new Date(a.createdAt) - new Date(b.createdAt)
+          ));
         }
-        if (!selectedUser || selectedUser.userId !== message.senderId) {
-          console.log('Nouveau message reçu de:', message.sender.name);
-        }
+        updateConversationWithNewMessage(message);
       });
 
       socket.on('error', (error) => {
@@ -74,13 +83,38 @@ export default function Messages() {
         socket = null;
       }
     };
-  }, [user]);
+  }, [user, selectedUser]);
+
+  const updateConversationWithNewMessage = (message) => {
+    setConversations(prevConversations => {
+      const otherUserId = message.senderId === user.id ? message.receiverId : message.senderId;
+      const conversationIndex = prevConversations.findIndex(conv => 
+        (conv.sender.id === otherUserId && conv.receiver.id === user.id) ||
+        (conv.sender.id === user.id && conv.receiver.id === otherUserId)
+      );
+
+      const newConversations = [...prevConversations];
+
+      if (conversationIndex !== -1) {
+        newConversations[conversationIndex] = {
+          ...newConversations[conversationIndex],
+          content: message.content,
+          createdAt: message.createdAt
+        };
+
+        if (conversationIndex > 0) {
+          const [updatedConv] = newConversations.splice(conversationIndex, 1);
+          newConversations.unshift(updatedConv);
+        }
+      }
+
+      return newConversations;
+    });
+  };
 
   useEffect(() => {
     if (socket && selectedUser) {
-      console.log('Fetching messages for user:', selectedUser.userId);
       socket.emit('getMessages', { otherUserId: selectedUser.userId });
-      socket.emit('markAsRead', { senderId: selectedUser.userId });
     }
   }, [selectedUser]);
 

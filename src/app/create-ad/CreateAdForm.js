@@ -17,196 +17,244 @@ const CATEGORIES = [
 ];
 
 export default function CreateAdForm() {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    price: '',
-    category: ''
-  });
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
+  const [category, setCategory] = useState('');
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB max
+        setError('L\'image ne doit pas dépasser 5MB');
+        return;
+      }
+      setImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImageToCloudinary = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', 'ml_default');
+      formData.append('folder', 'samples/ecommerce');
+      formData.append('public_id_prefix', file.name);
+      
+      console.log('Tentative d\'upload avec les paramètres:', {
+        upload_preset: 'ml_default',
+        folder: 'samples/ecommerce',
+        filename: file.name
+      });
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/dihipijjs/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+      console.log('Réponse Cloudinary:', data);
+
+      if (!response.ok) {
+        throw new Error(`Erreur Cloudinary: ${data.error?.message || 'Erreur inconnue'}`);
+      }
+
+      if (data.secure_url) {
+        return data.secure_url;
+      } else {
+        throw new Error('URL sécurisée non trouvée dans la réponse');
+      }
+    } catch (error) {
+      console.error('Détails de l\'erreur:', error);
+      if (error.response) {
+        const errorData = await error.response.json();
+        console.error('Réponse d\'erreur Cloudinary:', errorData);
+      }
+      throw new Error(`Erreur lors de l'upload de l'image: ${error.message}`);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!user) return;
+    
+    setLoading(true);
     setError('');
-    setIsLoading(true);
-
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-
-    if (!formData.category) {
-      setError('Veuillez sélectionner une catégorie');
-      setIsLoading(false);
-      return;
-    }
 
     try {
-      const formDataToSend = {
-        ...formData,
-        price: parseFloat(formData.price),
-        userId: user.id,
-      };
-
-      console.log('Envoi des données:', formDataToSend);
+      let imageUrl = null;
+      if (image) {
+        try {
+          imageUrl = await uploadImageToCloudinary(image);
+          console.log('Image uploadée avec succès:', imageUrl);
+        } catch (uploadError) {
+          console.error('Erreur lors de l\'upload:', uploadError);
+          setError(`Erreur lors de l'upload de l'image: ${uploadError.message}`);
+          setLoading(false);
+          return;
+        }
+      }
 
       const response = await fetch('/api/ads', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formDataToSend),
+        body: JSON.stringify({
+          title,
+          description,
+          price: parseFloat(price),
+          category,
+          userId: user.id,
+          imageUrl
+        }),
       });
 
-      let data;
-      try {
-        const textResponse = await response.text();
-        console.log('Réponse brute:', textResponse);
-        data = JSON.parse(textResponse);
-      } catch (parseError) {
-        console.error('Erreur de parsing JSON:', parseError);
-        throw new Error('Réponse invalide du serveur');
-      }
-
-      console.log('Réponse parsée:', data);
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.details || 'Erreur lors de la création de l\'annonce');
+        throw new Error(data.error || 'Une erreur est survenue');
       }
 
-      if (data.success) {
-        router.push('/');
-      } else {
-        throw new Error(data.error || 'Erreur lors de la création de l\'annonce');
-      }
-    } catch (err) {
-      console.error('Erreur complète:', err);
-      setError(err.message || 'Une erreur est survenue');
+      router.push('/');
+    } catch (error) {
+      setError(error.message);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  if (typeof window !== 'undefined' && !user) {
+  if (!user) {
     router.push('/login');
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white p-8 rounded-lg shadow">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">
-            Créer une nouvelle annonce
-          </h1>
+    <div className="max-w-2xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-6">Créer une nouvelle annonce</h1>
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
 
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-              {error}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+            Titre de l'annonce
+          </label>
+          <input
+            type="text"
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+            Description
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows="4"
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="price" className="block text-sm font-medium text-gray-700">
+            Prix (€)
+          </label>
+          <input
+            type="number"
+            id="price"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            required
+            min="0"
+            step="0.01"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+            Catégorie
+          </label>
+          <select
+            id="category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          >
+            <option value="">Sélectionnez une catégorie</option>
+            {CATEGORIES.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Image</label>
+          <div className="mt-1 flex items-center">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="block w-full text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-md file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100"
+            />
+          </div>
+          {imagePreview && (
+            <div className="mt-2">
+              <img
+                src={imagePreview}
+                alt="Aperçu"
+                className="h-32 w-auto object-cover rounded-lg"
+              />
             </div>
           )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-                Catégorie
-              </label>
-              <select
-                id="category"
-                name="category"
-                required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-black focus:border-black"
-                value={formData.category}
-                onChange={handleChange}
-              >
-                <option value="">Sélectionnez une catégorie</option>
-                {CATEGORIES.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-                Titre de l'annonce
-              </label>
-              <input
-                type="text"
-                id="title"
-                name="title"
-                required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-black focus:border-black"
-                value={formData.title}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                Description
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                required
-                rows={4}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-black focus:border-black"
-                value={formData.description}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-                Prix (€)
-              </label>
-              <input
-                type="number"
-                id="price"
-                name="price"
-                required
-                min="0"
-                step="0.01"
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-black focus:border-black"
-                value={formData.price}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => router.push('/')}
-                className="bg-gray-200 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`bg-black py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black ${
-                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isLoading ? 'Création...' : 'Créer l\'annonce'}
-              </button>
-            </div>
-          </form>
+          <p className="mt-1 text-sm text-gray-500">
+            PNG, JPG, GIF jusqu'à 5MB
+          </p>
         </div>
-      </div>
+        
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? 'Création en cours...' : 'Créer l\'annonce'}
+        </button>
+      </form>
     </div>
   );
 } 

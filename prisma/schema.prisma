@@ -37,6 +37,7 @@ model Ad {
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
   responses   Response[]
+  imageUrl    String?  // Champ optionnel pour stocker l'URL de l'image
 }
 
 model Response {

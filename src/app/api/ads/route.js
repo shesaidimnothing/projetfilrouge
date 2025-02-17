@@ -26,7 +26,7 @@ export async function POST(request) {
     const body = await request.json();
     console.log('Données reçues:', JSON.stringify(body, null, 2));
 
-    const { title, description, price, category, userId } = body;
+    const { title, description, price, category, userId, imageUrl } = body;
 
     // Vérifier que tous les champs requis sont présents
     if (!title || !description || !price || !category || !userId) {
@@ -69,7 +69,8 @@ export async function POST(request) {
       description,
       price: parseFloat(price),
       category,
-      userId: parseInt(userId)
+      userId: parseInt(userId),
+      imageUrl
     });
 
     const ad = await prisma.ad.create({
@@ -79,6 +80,7 @@ export async function POST(request) {
         price: parseFloat(price),
         category,
         userId: parseInt(userId),
+        imageUrl
       },
       include: {
         user: {
