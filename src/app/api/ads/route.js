@@ -4,82 +4,51 @@ import prisma from '@/utils/prisma';
 
 export async function POST(request) {
   try {
-    console.log('Début de la requête POST');
-
-    // Récupérer les cookies pour vérifier l'authentification
+    // Vérifier l'authentification via le cookie
     const cookieStore = await cookies();
     const userDataCookie = cookieStore.get('userData');
-    console.log('Cookie userData:', userDataCookie?.value);
 
     if (!userDataCookie?.value) {
-      console.log('Pas de cookie userData');
-      return new NextResponse(
-        JSON.stringify({ success: false, error: 'Non autorisé' }),
-        { 
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        }
+      return NextResponse.json(
+        { error: 'Non autorisé - Veuillez vous connecter' },
+        { status: 401 }
+      );
+    }
+
+    let userData;
+    try {
+      userData = JSON.parse(userDataCookie.value);
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Session invalide' },
+        { status: 401 }
+      );
+    }
+
+    // Vérifier que l'utilisateur existe dans la base de données
+    const user = await prisma.user.findUnique({
+      where: { id: userData.id }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Utilisateur non trouvé' },
+        { status: 401 }
       );
     }
 
     // Récupérer les données de l'annonce
     const body = await request.json();
-    console.log('Données reçues:', JSON.stringify(body, null, 2));
+    const { title, description, price, category, imageUrl } = body;
 
-    const { title, description, price, category, userId, imageUrl } = body;
-
-    // Vérifier que tous les champs requis sont présents
-    if (!title || !description || !price || !category || !userId) {
-      console.log('Champs manquants:', { title, description, price, category, userId });
-      return new NextResponse(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Tous les champs sont requis',
-          receivedData: { title, description, price, category, userId }
-        }),
-        { 
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Vérifier que l'utilisateur existe
-    const user = await prisma.user.findUnique({
-      where: { id: parseInt(userId) }
-    });
-
-    if (!user) {
-      console.log('Utilisateur non trouvé:', userId);
-      return new NextResponse(
-        JSON.stringify({
-          success: false,
-          error: 'Utilisateur non trouvé'
-        }),
-        {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Créer l'annonce
-    console.log('Tentative de création de l\'annonce avec:', {
-      title,
-      description,
-      price: parseFloat(price),
-      category,
-      userId: parseInt(userId),
-      imageUrl
-    });
-
+    // Créer l'annonce avec l'ID utilisateur du cookie
     const ad = await prisma.ad.create({
       data: {
         title,
         description,
         price: parseFloat(price),
         category,
-        userId: parseInt(userId),
+        userId: userData.id,
         imageUrl
       },
       include: {
@@ -92,57 +61,17 @@ export async function POST(request) {
       },
     });
 
-    console.log('Annonce créée avec succès:', ad);
-
-    return new NextResponse(
-      JSON.stringify({
-        success: true,
-        ad,
-        message: 'Annonce créée avec succès'
-      }),
-      { 
-        status: 201,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    return NextResponse.json({
+      success: true,
+      ad,
+      message: 'Annonce créée avec succès'
+    }, { status: 201 });
     
   } catch (error) {
-    console.error('Erreur détaillée:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      code: error.code
-    });
-
-    // Si c'est une erreur Prisma
-    if (error.code) {
-      return new NextResponse(
-        JSON.stringify({
-          success: false,
-          error: 'Erreur de base de données',
-          details: error.message,
-          code: error.code
-        }),
-        { 
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    return new NextResponse(
-      JSON.stringify({
-        success: false,
-        error: 'Erreur lors de la création de l\'annonce',
-        details: error.message
-      }),
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
-  } finally {
-    console.log('Fin de la requête POST');
+    console.error('Erreur création annonce:', error);
+    return NextResponse.json({
+      error: 'Erreur lors de la création de l\'annonce'
+    }, { status: 500 });
   }
 }
 

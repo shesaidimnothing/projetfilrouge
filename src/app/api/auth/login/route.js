@@ -47,18 +47,26 @@ export async function POST(request) {
     }
 
     const { password: _, ...userWithoutPassword } = user;
-    return new NextResponse(
-      JSON.stringify({ 
-        user: userWithoutPassword,
-        message: 'Connexion réussie'
-      }),
-      { status: 200 }
-    );
-    
+
+    // Créer la réponse avec les données utilisateur
+    const response = NextResponse.json({ 
+      user: userWithoutPassword,
+      message: 'Connexion réussie'
+    });
+
+    // Définir le cookie userData
+    response.cookies.set('userData', JSON.stringify(userWithoutPassword), {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7 // 7 jours
+    });
+
+    return response;
   } catch (error) {
     console.error('Erreur de connexion:', error);
-    return new NextResponse(
-      JSON.stringify({ error: 'Erreur lors de la connexion' }),
+    return NextResponse.json(
+      { error: 'Erreur lors de la connexion' },
       { status: 500 }
     );
   }

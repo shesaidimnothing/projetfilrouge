@@ -100,9 +100,7 @@ export default function CreateAdForm() {
       if (image) {
         try {
           imageUrl = await uploadImageToCloudinary(image);
-          console.log('Image uploadée avec succès:', imageUrl);
         } catch (uploadError) {
-          console.error('Erreur lors de l\'upload:', uploadError);
           setError(`Erreur lors de l'upload de l'image: ${uploadError.message}`);
           setLoading(false);
           return;
@@ -114,6 +112,7 @@ export default function CreateAdForm() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           title,
           description,

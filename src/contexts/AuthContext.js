@@ -12,9 +12,21 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedUser = localStorage.getItem('userData');
-      if (storedUser) {
+      const cookies = document.cookie.split(';');
+      const userDataCookie = cookies.find(c => c.trim().startsWith('userData='));
+      
+      if (userDataCookie) {
         try {
-          setUserState(JSON.parse(storedUser));
+          const userData = JSON.parse(decodeURIComponent(userDataCookie.split('=')[1]));
+          setUserState(userData);
+        } catch (error) {
+          console.error('Erreur de parsing du cookie userData', error);
+        }
+      } else if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          setUserState(userData);
+          document.cookie = `userData=${encodeURIComponent(storedUser)};path=/;max-age=${60 * 60 * 24 * 7}`;
         } catch (error) {
           console.error('Erreur de parsing des données utilisateur', error);
         }
@@ -25,9 +37,12 @@ export function AuthProvider({ children }) {
   const updateUser = (userData) => {
     if (typeof window !== 'undefined') {
       if (userData) {
-        localStorage.setItem('userData', JSON.stringify(userData));
+        const userStr = JSON.stringify(userData);
+        localStorage.setItem('userData', userStr);
+        document.cookie = `userData=${encodeURIComponent(userStr)};path=/;max-age=${60 * 60 * 24 * 7}`;
       } else {
         localStorage.removeItem('userData');
+        document.cookie = 'userData=;path=/;expires=Thu, 01 Jan 1970 00:00:01 GMT;';
       }
       setUserState(userData);
     }
